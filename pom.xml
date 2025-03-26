@@ -6,7 +6,7 @@
 
     <groupId>com.lynzzyr</groupId>
     <artifactId>kcna-fetch</artifactId>
-    <version>1.0</version>
+    <version>0.1</version>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
@@ -16,6 +16,13 @@
 
 
     <dependencies>
+
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+            <version>4.7.6</version>
+        </dependency>
+
 
         <dependency>
             <groupId>com.googlecode.json-simple</groupId>

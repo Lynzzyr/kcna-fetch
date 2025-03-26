@@ -27,7 +27,7 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.tinylog.Logger;
 
 /** Class for actions related to scraping videos with Selenium Chromedriver. */
-public class Fetcher {
+public class Scraper {
     // date
     private LocalDate date;
 
@@ -39,7 +39,7 @@ public class Fetcher {
     ChromeDriver driver;
 
     /** Creates a new Fetcher. Chromedriver binary will be handled by Selenium Manager. */
-    public Fetcher(LocalDate date) throws IOException, ParseException {
+    public Scraper(LocalDate date) throws IOException, ParseException {
         // date
         this.date = date;
 
@@ -58,7 +58,7 @@ public class Fetcher {
      * Creates a new Fetcher.
      * @param executablePath The Chromedriver binary file location
      */
-    public Fetcher(LocalDate date, String executablePath) throws IOException, ParseException {
+    public Scraper(LocalDate date, String executablePath) throws IOException, ParseException {
         // date
         this.date = date;
 
