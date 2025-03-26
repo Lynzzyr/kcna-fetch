@@ -6,4 +6,6 @@
 
 KCNAFetch is a command-line tool that can download a single or range of broadcast archives from the KCNA Watch [KCTV Archive](https://kcnawatch.org/kctv-archive).
 
+`utils.json` contains useful parameters and settings for the program. For example, should KCNA Watch update its KCTV archive database backend and/or video player structure, these changes may be mitigated right from it. Note that it is **required** that the correctly-formatted `utils.json` is present in the directory of `KCNAFetch.jar`.
+
 For usage help, run with `--help` or `-h`. Requires Java 21+.
