@@ -1,128 +1,146 @@
+/*
+ * Copyright © 2025 Brandon Namgoong. Licensed under GNU GPLv3.
+ * This project is purely for educational and personal purposes.
+ */
+
 package com.lynzzyr.kcnafetch;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.channels.Channels;
-import java.nio.channels.FileChannel;
-import java.nio.channels.ReadableByteChannel;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.interactions.Actions;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
 import org.tinylog.Logger;
 
-/** Class for actions related to scraping videos with Selenium Chromedriver. */
-public class Scraper {
+/** Class for scraping videos with Selenium Chromedriver. */
+public class Scraper implements AutoCloseable {
     // date
     private LocalDate date;
 
-    // json things
-    private final JSONObject elements;
-    private final List<String> options;
-
     // webdriver
-    ChromeDriver driver;
+    private final ChromeDriver driver;
 
-    /** Creates a new Fetcher. Chromedriver binary will be handled by Selenium Manager. */
-    public Scraper(LocalDate date) throws IOException, ParseException {
+    // util
+    private File lastFile;
+
+    /** Creates a new Scraper. Chromedriver binary will be handled by Selenium Manager. */
+    public Scraper(LocalDate date) {
         // date
         this.date = date;
 
-        // json things
-        try (FileReader fr = new FileReader("utils.json")) {
-            elements = (JSONObject) ((JSONObject) new JSONParser().parse(fr)).get("elements");
-            options = (List<String>) ((JSONObject) new JSONParser().parse(fr)).get("webdriver_opts");
-        }
-
         // driver
-        driver = new ChromeDriver(new ChromeOptions().addArguments(options));
-        Logger.debug("{} Webdriver opened", LocalTime.now());
+        driver = new ChromeDriver(new ChromeOptions().addArguments(
+            "--headless=new",
+            "disable-infobars",
+            "--disable-extensions",
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
+            "--no-sandbox"
+        ));
+        Logger.debug("Webdriver opened");
     }
 
     /**
-     * Creates a new Fetcher.
-     * @param executablePath The Chromedriver binary file location
+     * Creates a new Scraper.
+     * @param binaryPath The Chromedriver binary file location
      */
-    public Scraper(LocalDate date, String executablePath) throws IOException, ParseException {
+    public Scraper(LocalDate date, String binaryPath) {
         // date
         this.date = date;
 
-        // json things
-        try (FileReader fr = new FileReader("utils.json")) {
-            elements = (JSONObject) ((JSONObject) new JSONParser().parse(fr)).get("urls");
-            options = (List<String>) ((JSONObject) new JSONParser().parse(fr)).get("webdriver_opts");
-        }
-
         // driver
-        driver = new ChromeDriver(new ChromeOptions()
-            .addArguments(options)
-            .setBinary(Path.of(executablePath).toFile())
-        );
-        Logger.debug("{} Webdriver opened", LocalTime.now());
+        driver = new ChromeDriver(new ChromeOptions().addArguments(
+            "--headless=new",
+            "disable-infobars",
+            "--disable-extensions",
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
+            "--no-sandbox"
+        ).setBinary(binaryPath));
+        Logger.debug("Webdriver opened");
     }
 
     /**
-     * Searches for URL of broadcast archive specified.
+     * Prints or refreshes a download progress bar to stdout. Written template by ChatGPT 4o.
+     * @param downloaded Number of bytes already downloaded
+     * @param totalSize Number of bytes in total
+     */
+    private static void progressBar(long downloaded, long totalSize) {
+        double progress = (double) downloaded / totalSize;
+        int filledBars = (int) (progress * 50);
+        String bar = "[" + "=".repeat(filledBars) + " ".repeat(50 - filledBars) + "]";
+        System.out.printf("\r%s %d%% (%d/%d bytes)", bar, (int) (progress * 100), downloaded, totalSize);
+        System.out.flush();
+    }
+
+    /**
+     * Searches for broadcast archive URL of Scraper instance's current date value.
      * @return URL of .mp4 resource
      * @throws NullBroadcastException if broadcast at date does not exist
      */
-    public String scrapeUrl() throws NullBroadcastException {
-        Logger.info("{} Starting search for stream URL for {}", LocalTime.now(), date);
+    public String scrapeURL() throws NullBroadcastException {
+        Logger.info("Starting search for stream URL for {}", date);
         
         // initial search for article
-        String u1 = ((String) elements.get("search_urls")).replace(
-                "DATE", date.format(DateTimeFormatter.ofPattern((String) elements.get("search_date_pattern")))
+        String u1 = "https://kcnawatch.org/kctv-archive/?start=DATE&end=DATE".replace(
+                "DATE",
+                date.format(DateTimeFormatter.ofPattern("dd-MM-uuuu"))
             );
-        Logger.info("{} {} will be used as the search URL", LocalTime.now(), u1);
+        Logger.info("{} will be used as the search URL", u1);
 
         driver.get(u1);
 
         // find full broadcast from articles
         String u2 = "";
 
-        for (WebElement article : driver.findElements(By.className((String) elements.get("1_class")))) {
+        for (WebElement article : driver.findElements(By.className("article-desc"))) {
             if (article
-                .findElement(By.className((String) elements.get("2_class")))
+                .findElement(By.className("broadcast-head"))
                 .getText()
-                .equals((String) elements.get("2_element"))
+                .equals("Full Broadcast")
             ) {
-                u2 = article
-                    .findElement(By.linkText(date.format(DateTimeFormatter.ofPattern((String) elements.get("2_date_pattern")))))
-                    .getDomAttribute((String) elements.get("2_attribute"));
+                u2 = "https://kcnawatch.org" + article
+                    .findElement(By.linkText(date.format(DateTimeFormatter.ofPattern("EEEE LLLL dd, uuuu"))))
+                    .getDomAttribute("href");
                 break;
             }
         }
 
         if (u2.isEmpty()) {
-            Logger.error("{} Broadcast of {} does not exist!", LocalTime.now(), date);
             throw new NullBroadcastException("broadcast does not exist");
         } else {
-            Logger.info("{} Found full broadcast article at {}", LocalTime.now(), u2);
+            Logger.info("Found full broadcast article at {}", u2);
         }
 
         driver.get(u2);
 
         // get final resource url
-        String u3 = driver
-            .findElement(By.xpath((String) elements.get("3_xpath")))
-            .findElement(By.xpath((String) elements.get("4_xpath")))
-            .getDomAttribute((String) elements.get("4_attribute"));
-        Logger.info("{} Stream URL found at {}", LocalTime.now(), u3);
+        new Actions(driver)
+            .moveByOffset(10, 10) // arbitrary
+            .perform(); // kcnawatch.org has tried
+        String u3 = new WebDriverWait(
+            driver,
+            Duration.ofSeconds(30) // arbitary
+        ).until(
+            ExpectedConditions.presenceOfElementLocated(By.xpath("//video[@id = \'bitmovinplayer-video-player\']")))
+            .findElement(By.xpath("source"))
+            .getDomAttribute("src");
+        Logger.info("Stream URL found at {}", u3);
         
         // out
         return u3;
@@ -140,25 +158,25 @@ public class Scraper {
      * @throws SocketTimeoutException if attempt at URL connection exceeds timeout
      */
     public void getBroadcast(String url, Path dir, int timeout, boolean temporary, boolean replaceExisting) throws URISyntaxException, IOException, SocketTimeoutException {
-        // check supplied location
+        // check for save directory
         if (!dir.toFile().isDirectory()) {
-            Logger.error("{} Supplied save location is not a directory! Exiting.", LocalTime.now());
+            Logger.error("Supplied save location(s) is/are not a directory! Exiting.");
             System.exit(1);
         }
-
+        
         // download file handling
         String fn = temporary
             ? "dl-" + date.toString() + ".mp4"
             : "Full Broadcast " + date.format(DateTimeFormatter.ofPattern("uuuu MM dd")) + ".mp4";
-        File f = dir.resolve(fn).toFile();
+        File f = lastFile = dir.resolve(fn).toFile();
 
         // file
         if (f.exists()) {
             if (replaceExisting) {
                 f.delete();
-                Logger.info("{} Existing broadcast deleted", LocalTime.now());
+                Logger.info("Existing broadcast deleted");
             } else {
-                Logger.warn("{} Broadcast already exists!", LocalTime.now());
+                Logger.warn("Broadcast already exists!");
                 return;
             }
         }
@@ -167,28 +185,37 @@ public class Scraper {
         HttpURLConnection con = (HttpURLConnection) new URI(url).toURL().openConnection();
         con.setConnectTimeout(timeout);
         con.setReadTimeout(timeout);
-        Logger.debug("{} HTTP connection established", LocalTime.now());
+        Logger.debug("HTTP connection established");
 
         if (con.getResponseCode() != HttpURLConnection.HTTP_OK) { // verify HTTP status
             throw new IOException("HTTP status " + con.getResponseCode());
         }
 
+        // certain portions template written by ChatGPT 4o
         try (
-            ReadableByteChannel rbc = Channels.newChannel(con.getInputStream());
+            InputStream istr = con.getInputStream();
             FileOutputStream fos = new FileOutputStream(f);
-            FileChannel fc = fos.getChannel();
         ) {
-            Logger.info("{} Getting data", LocalTime.now());
-            fc.transferFrom(rbc, 0, Long.MAX_VALUE);
+            byte[] buffer = new byte[8192];
+            long dl = 0;
+            int read;
+
+            Logger.info("Getting file...");
+            while ((read = istr.read(buffer)) != -1) {
+                fos.write(buffer, 0, read);
+                dl += read;
+                progressBar(dl, con.getContentLengthLong());
+            }
+            System.out.print("\n"); // newline after progress bar
         }
-        Logger.info("{} Fetch complete", LocalTime.now());
+        Logger.info("Download complete!");
 
         con.disconnect();
-        Logger.debug("{} HTTP connection closed", LocalTime.now());
+        Logger.debug("HTTP connection closed");
     }
 
     /**
-     * Gets the current date used by the Fetcher.
+     * Gets the current date used by the Scraper.
      * @return The LocalDate
      */
     public LocalDate getDate() {
@@ -196,10 +223,34 @@ public class Scraper {
     }
 
     /**
-     * Sets the date to be used by the Fetcher.
+     * Sets the date to be used by the Scraper.
      * @param date The LocalDate
      */
     public void setDate(LocalDate date) {
         this.date = date;
+    }
+
+    /**
+     * Gets the last file created by the Scraper.
+     * @return The lastFile
+     */
+    public File getLastFile() {
+        return lastFile;
+    }
+
+    /**
+     * Gets a final file based on the current instance's date.
+     * @param finalDir The directory to put the final File
+     * @return A File
+     */
+    public File getCompletedFile(Path finalDir) {
+        return finalDir.resolve(
+            "Full Broadcast " + date.format(DateTimeFormatter.ofPattern("uuuu MM dd")) + ".mp4"
+        ).toFile();
+    }
+
+    @Override
+    public void close() {
+        driver.quit();
     }
 }
