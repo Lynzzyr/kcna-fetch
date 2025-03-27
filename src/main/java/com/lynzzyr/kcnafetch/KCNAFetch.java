@@ -21,7 +21,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
-// Usage: kcnafetch <start> <location> --end END_DATE --chromedriver_binary PATH --timeout TIMEOUT --replace_existing --temp_dir DIR --aspect --force_aspect --timestamps
+// Usage: kcnafetch <start> <location> --end END_DATE --chromedriver_binary PATH --timeout TIMEOUT --replace_existing --keep_failed --temp_dir DIR --aspect --force_aspect --timestamps
 @Command(
     name = "kcnafetch",
     mixinStandardHelpOptions = true,
@@ -65,6 +65,11 @@ public class KCNAFetch implements Runnable {
         description = "Whether to replace existing broadcasts in the event of an overlap."
     )
     private boolean rp;
+    @Option(
+        names = {"-k", "--keep_failed"},
+        description = "Whether to keep any failed or incomplete downloads in the event of connection errors."
+    )
+    private boolean keepFailed;
     @Option(
         names = {"-tmp", "--temp_dir"},
         description = "Temporary directory to store working video files, if video processing is desired. Will be ignored if no video processing."
@@ -127,7 +132,8 @@ public class KCNAFetch implements Runnable {
                         process ? Path.of(tempDir) : Path.of(dir),
                         timeout,
                         process,
-                        rp
+                        rp,
+                        keepFailed
                     );
                 } catch (URISyntaxException | IOException e) {
                     Logger.error(e, "Unexpected error whilst getting URL request! Exiting");
