@@ -6,7 +6,7 @@
 
     <groupId>com.lynzzyr</groupId>
     <artifactId>kcna-fetch</artifactId>
-    <version>0.1a</version>
+    <version>0.1.1</version>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
