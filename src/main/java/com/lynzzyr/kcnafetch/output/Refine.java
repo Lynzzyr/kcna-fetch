@@ -3,7 +3,6 @@
  * This project is purely for educational and personal purposes.
  */
 
- 
 package com.lynzzyr.kcnafetch.output;
 
 import java.io.File;
