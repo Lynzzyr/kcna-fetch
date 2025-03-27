@@ -94,6 +94,7 @@ public class KCNAFetch implements Runnable {
         // check for parameters and options
         if (start.isEmpty() || dir.isEmpty()) {
             Logger.error("Missing required positional arguments! Exiting.");
+            Logger.info("For usage help use --help.");
             System.exit(1);
         }
         if (process && tempDir.isEmpty()) {
@@ -163,11 +164,11 @@ public class KCNAFetch implements Runnable {
                 }
             }
         }
+        Logger.info("Done!");
     }
 
     public static void main(String[] args) {
         new CommandLine(new KCNAFetch()).execute(args);
-        Logger.info("Done!");
         System.exit(0);
     }
 }

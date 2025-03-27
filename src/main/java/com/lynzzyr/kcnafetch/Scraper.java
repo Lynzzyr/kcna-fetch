@@ -84,7 +84,7 @@ public class Scraper implements AutoCloseable {
         double progress = (double) downloaded / totalSize;
         int filledBars = (int) (progress * 50);
         String bar = "[" + "=".repeat(filledBars) + " ".repeat(50 - filledBars) + "]";
-        System.out.printf("\r%s %d%% (%d/%d bytes)", bar, (int) (progress * 100), downloaded, totalSize);
+        System.out.print("\033[2K\r" + bar + " " + (int) (progress * 100) + "% (" + downloaded + "/" + totalSize + " bytes) ");
         System.out.flush();
     }
 
