@@ -6,4 +6,12 @@
 
 KCNAFetch is a command-line tool that can download a single or range of broadcast archives from the KCNA Watch [KCTV Archive](https://kcnawatch.org/kctv-archive).
 
-For usage help run `java -jar kcna-fetch-[VERSION].jar --help`. Requires Java 21+.
+## Building
+
+Maven is required as a prerequisite to build.
+
+All dependencies and plugins are configured already. To build, clone this repository using `git clone` and run `mvn compile assembly:single`.
+
+## Usage
+
+KCNAFetch requires Java 21+ to run. This is solely a command-line utility; run in a terminal with `java -jar kcna-fetch-[VERSION].jar`. For usage help use `--help`.
