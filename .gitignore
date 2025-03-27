@@ -16,5 +16,7 @@ buildNumber.properties
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
 
+temp/
+
 # macOS no u
 .DS_Store
