@@ -167,7 +167,7 @@ public class Scraper implements AutoCloseable {
         // download file handling
         String fn = temporary
             ? "dl-" + date.toString() + ".mp4"
-            : "Full Broadcast " + date.format(DateTimeFormatter.ofPattern("uuuu MM dd")) + ".mp4";
+            : "Broadcast " + date.format(DateTimeFormatter.ofPattern("uuuu MM dd")) + ".mp4";
         File f = lastFile = dir.resolve(fn).toFile();
 
         // file
