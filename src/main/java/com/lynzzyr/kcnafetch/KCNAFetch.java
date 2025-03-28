@@ -21,7 +21,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
-// Usage: kcnafetch <start> <location> --end END_DATE --chromedriver_binary PATH --timeout TIMEOUT --replace_existing --keep_failed --temp_dir DIR --aspect --force_aspect --timestamps
+// Usage: kcnafetch <dir> --start START_DATE --end END_DATE --chromedriver_binary PATH --timeout TIMEOUT --replace_existing --keep_failed --temp_dir DIR --aspect --force_aspect --timestamps
 @Command(
     name = "kcnafetch",
     mixinStandardHelpOptions = true,
@@ -32,18 +32,16 @@ public class KCNAFetch implements Runnable {
     // parameters
     @Parameters(
         index = "0",
-        description = "Start date of range, inclusive. Format in ISO 8601 (YYYY-MM-DD). If range spans only 1 day, use this parameter exclusively.",
-        defaultValue = ""
-    )
-    private String start;
-    @Parameters(
-        index = "1",
-        description = "Directory to save the result. Both POSIX and Windows paths are accepted.",
-        defaultValue = ""
+        description = "Directory to save the result. Both POSIX and Windows paths are accepted."
     )
     private String dir;
 
     // options
+    @Option(
+        names = {"-s", "--start"},
+        description = "Start date of range, inclusive. Format in ISO 8601 (YYYY-MM-DD). Leave blank for default value of previous day in local time."
+    )
+    private String start;
     @Option(
         names = {"-e", "--end"},
         description = "End date of range, inclusve. Format in ISO 8601 (YYYY-MM-DD). Use only when range spans more than 1 day."
@@ -97,18 +95,17 @@ public class KCNAFetch implements Runnable {
         boolean process = aspect || forceAspect || timestamps;
 
         // check for parameters and options
-        if (start.isEmpty() || dir.isEmpty()) {
-            Logger.error("Missing required positional arguments! Exiting.");
-            Logger.info("For usage help use --help.");
-            System.exit(1);
-        }
         if (process && tempDir.isEmpty()) {
             Logger.error("A temporary directory was not specified despite video processing being requested! Exiting.");
             System.exit(1);
         }
 
         // create day range
-        LocalDate startDate = LocalDate.parse(start);
+        LocalDate startDate = (start == null)
+            ? LocalDate
+                .now()
+                .minusDays(1)
+            : LocalDate.parse(start);
         LocalDate endDate = (end == null)
             ? startDate
             : LocalDate.parse(end);
