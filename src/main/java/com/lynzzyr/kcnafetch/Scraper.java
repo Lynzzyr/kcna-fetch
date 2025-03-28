@@ -153,7 +153,6 @@ public class Scraper implements AutoCloseable {
      * @param timeout Timeout in milliseconds for URL connection
      * @param temporary Whether the downloaded file is temporary and needs processing or is going straight to final destination
      * @param replaceExisting Whether to replace an existing download of the same name
-     * @param keepFailed Whether to keep any failed or incomplete downloads
      * @throws URISyntaxException
      * @throws IOException If HTTP status is not OK on request
      * @throws SocketTimeoutException if attempt at URL connection exceeds timeout
@@ -163,8 +162,7 @@ public class Scraper implements AutoCloseable {
         Path dir,
         int timeout,
         boolean temporary,
-        boolean replaceExisting,
-        boolean keepFailed
+        boolean replaceExisting
     ) throws URISyntaxException, IOException, SocketTimeoutException {
         // check for save directory
         if (!dir.toFile().isDirectory()) {
@@ -230,15 +228,17 @@ public class Scraper implements AutoCloseable {
             if (dl == con.getContentLengthLong()) {
                 Logger.info("Download complete!");
                 break;
-            } else if (i == 2) {
-                Logger.error("Download failed after 3 attempts!");
-                if (!keepFailed && f.exists()) {
+            } else {
+                if (f.exists()) {
                     f.delete();
                     Logger.warn("Failed or incomplete file deleted");
                 }
-                break;
-            } else {
-                Logger.warn("Download failed or incomplete! Retrying.");
+                if (i == 2) {
+                    Logger.error("Download failed after 3 attempts!");
+                    break;
+                } else {
+                    Logger.warn("Download failed or incomplete! Retrying.");
+                }
             }
         }
     }
