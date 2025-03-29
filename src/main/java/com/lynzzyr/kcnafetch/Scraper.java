@@ -268,14 +268,11 @@ public class Scraper implements AutoCloseable {
     }
 
     /**
-     * Gets a final file based on the current instance's date.
-     * @param finalDir The directory to put the final File
+     * Gets a final filename based on the current instance's date.
      * @return A File
      */
-    public File getCompletedFile(Path finalDir) {
-        return finalDir.resolve(
-            "Full Broadcast " + date.format(DateTimeFormatter.ofPattern("uuuu MM dd")) + ".mp4"
-        ).toFile();
+    public String getFinalFileName() {
+        return "Full Broadcast " + date.format(DateTimeFormatter.ofPattern("uuuu MM dd")) + ".mp4";
     }
 
     @Override

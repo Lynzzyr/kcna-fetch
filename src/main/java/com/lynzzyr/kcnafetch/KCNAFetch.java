@@ -8,12 +8,13 @@ package com.lynzzyr.kcnafetch;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.Scanner;
 
 import org.tinylog.Logger;
 
+import com.lynzzyr.kcnafetch.output.Finish;
 import com.lynzzyr.kcnafetch.output.Refine;
 
 import picocli.CommandLine;
@@ -21,7 +22,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
-// Usage: kcnafetch <dir> --start START_DATE --end END_DATE --chromedriver_binary PATH --timeout TIMEOUT --replace_existing --temp_dir DIR --aspect --force_aspect --timestamps
+// Usage: kcnafetch <dir> --start START_DATE --end END_DATE --chromedriver_binary PATH --timeout TIMEOUT --replace_existing --temp_dir DIR --keep_temp --aspect --force_aspect --timestamps --ocr_api PATH
 @Command(
     name = "kcnafetch",
     mixinStandardHelpOptions = true,
@@ -69,6 +70,11 @@ public class KCNAFetch implements Runnable {
     )
     private String tempDir;
     @Option(
+        names = {"-k", "--keep_temp"},
+        description = "Whether to keep temporary files if processing occured."
+    )
+    private boolean keepTemp;
+    @Option(
         names = {"-a", "--aspect"},
         description = "Whether to remove letterboxing if all frames are letterboxed."
     )
@@ -83,6 +89,11 @@ public class KCNAFetch implements Runnable {
         description = "Whether to attempt to detect and insert timestamps."
     )
     private boolean timestamps;
+    @Option(
+        names = {"-ocr", "--ocr_api"},
+        description = "Path to text file containing OCR.SPACE OCR API key. Both POSIX and Windows paths are accepted."
+    )
+    private String apiPath;
 
     // main program run
     @Override
@@ -90,7 +101,7 @@ public class KCNAFetch implements Runnable {
         boolean process = aspect || forceAspect || timestamps;
 
         // check for parameters and options
-        if (process && tempDir.isEmpty()) {
+        if (process && tempDir == null) {
             Logger.error("A temporary directory was not specified despite video processing being requested! Exiting.");
             System.exit(1);
         }
@@ -144,23 +155,25 @@ public class KCNAFetch implements Runnable {
                     }
                     // chapter marks
                     if (timestamps) {
-                        lastFile = Refine.addChapters(lastFile, Refine.searchChapters());
+                        try (Scanner scan = new Scanner(apiPath)) {
+                            lastFile = Refine.addTimestamps(
+                                lastFile,
+                                Refine.searchTimestamps(lastFile, scan.next())
+                            );
+                        }
                     }
 
-                    // completed processing
-                    if (!new File(tempDir).isDirectory()) {
-                        Logger.error("Supplied save location(s) is/are not a directory! Exiting.");
-                        System.exit(1);
-                    }
-                    try {
-                        Files.copy(lastFile.toPath(), scraper.getCompletedFile(Path.of(dir)).toPath());
-                    } catch (IOException e) {
-                        Logger.error(e, "Unexpected error whilst copying processed video file! Exiting");
-                        System.exit(1);
-                    }
+                    // output
+                    Finish.saveFinal(lastFile, Path.of(dir), scraper.getFinalFileName());
                 }
             }
         }
+        // cleanup
+        if (!keepTemp) {
+            Finish.cleanTemp(Path.of(tempDir));
+            Logger.info("Cleaned all temporary/working files and folders");
+        }
+
         Logger.info("Done!");
     }
 

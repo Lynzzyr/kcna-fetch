@@ -17,6 +17,8 @@ buildNumber.properties
 .classpath
 
 temp/
+api.txt
+test.java
 
 # macOS no u
 .DS_Store
