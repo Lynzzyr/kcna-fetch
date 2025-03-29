@@ -20,6 +20,7 @@ public final class Refine {
      * @param frameInterval How often snapshots are taken using number of frames
      * @param start The start timestamp in seconds since beginning
      * @param end The end timestamp in seconds since beginning
+     * @return Whether save was successful, true if yes, false if not.
      */
     public static boolean saveSnapshots(File file, Path tempDir, int start, int end, int frameInterval) {
         // create subdir
