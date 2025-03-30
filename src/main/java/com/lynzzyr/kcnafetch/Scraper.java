@@ -13,7 +13,6 @@ import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -29,6 +28,13 @@ import org.tinylog.Logger;
 
 /** Class for scraping videos with Selenium Chromedriver. */
 public class Scraper implements AutoCloseable {
+    // constants
+    private final int CURSOR_OFFSET_X   = 10;
+    private final int CURSOR_OFFSET_Y   = 10;
+    private final int WAIT_FOR_JS       = 30; // seconds
+    private final int FETCH_ATTEMPTS    = 3;
+    private final int BYTES_PER_BUFFER  = 8192;
+
     // date
     private LocalDate date;
 
@@ -81,9 +87,11 @@ public class Scraper implements AutoCloseable {
      * @param totalSize Number of bytes in total
      */
     private static void progressBar(long downloaded, long totalSize) {
+        final int BAR_WIDTH = 50;
+
         double progress = (double) downloaded / totalSize;
-        int filledBars = (int) (progress * 50);
-        String bar = "[" + "=".repeat(filledBars) + " ".repeat(50 - filledBars) + "]";
+        int filledBars = (int) (progress * BAR_WIDTH);
+        String bar = "[" + "=".repeat(filledBars) + " ".repeat(BAR_WIDTH - filledBars) + "]";
         System.out.print("\033[2K\r" + bar + " " + (int) (progress * 100) + "% (" + downloaded + "/" + totalSize + " bytes) ");
         System.out.flush();
     }
@@ -131,11 +139,11 @@ public class Scraper implements AutoCloseable {
 
         // get final resource url
         new Actions(driver)
-            .moveByOffset(10, 10) // arbitrary
+            .moveByOffset(CURSOR_OFFSET_X, CURSOR_OFFSET_Y) // arbitrary
             .perform(); // kcnawatch.org has tried
         String u3 = new WebDriverWait(
             driver,
-            Duration.ofSeconds(30) // arbitary
+            Duration.ofSeconds(WAIT_FOR_JS) // arbitary
         ).until(
             ExpectedConditions.presenceOfElementLocated(By.xpath("//video[@id = \'bitmovinplayer-video-player\']")))
             .findElement(By.xpath("source"))
@@ -159,13 +167,13 @@ public class Scraper implements AutoCloseable {
      */
     public void getBroadcast(
         String url,
-        Path dir,
+        File dir,
         int timeout,
         boolean temporary,
         boolean replaceExisting
     ) throws URISyntaxException, IOException, SocketTimeoutException {
         // check for save directory
-        if (!dir.toFile().isDirectory()) {
+        if (!dir.isDirectory()) {
             Logger.error("Supplied save location(s) is/are not a directory! Exiting.");
             System.exit(1);
         }
@@ -174,7 +182,10 @@ public class Scraper implements AutoCloseable {
         String fn = temporary
             ? "dl-" + date.toString() + ".mp4"
             : "Broadcast " + date.format(DateTimeFormatter.ofPattern("uuuu MM dd")) + ".mp4";
-        File f = lastFile = dir.resolve(fn).toFile();
+        File f = lastFile = dir
+            .toPath()
+            .resolve(fn)
+            .toFile();
 
         // file
         if (f.exists()) {
@@ -192,8 +203,8 @@ public class Scraper implements AutoCloseable {
         con.setReadTimeout(timeout);
 
         // get, will try 3 times in case of download fault
-        for (int i = 0; i < 3; i++) {
-            Logger.info("File download attempt {}/3", i + 1);
+        for (int i = 0; i < FETCH_ATTEMPTS; i++) {
+            Logger.info("File download attempt {}/{}", i + 1, FETCH_ATTEMPTS);
 
             con.connect();
             Logger.debug("HTTP connection established");
@@ -204,7 +215,7 @@ public class Scraper implements AutoCloseable {
             }
 
             // actual data download, certain portions template written by ChatGPT 4o
-            byte[] buffer = new byte[8192];
+            byte[] buffer = new byte[BYTES_PER_BUFFER];
             long dl = 0;
             int read;
 

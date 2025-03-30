@@ -8,7 +8,6 @@ package com.lynzzyr.kcnafetch;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.Scanner;
 
@@ -132,7 +131,7 @@ public class KCNAFetch implements Runnable {
                 try {
                     scraper.getBroadcast(
                         scraper.scrapeURL(),
-                        process ? Path.of(tempDir) : Path.of(dir),
+                        process ? new File(tempDir) : new File(dir),
                         timeout,
                         process,
                         rp
@@ -158,22 +157,20 @@ public class KCNAFetch implements Runnable {
                         try (Scanner scan = new Scanner(apiPath)) {
                             lastFile = Refine.addTimestamps(
                                 lastFile,
-                                Refine.searchTimestamps(lastFile, scan.next())
+                                Refine.searchTimestamps(lastFile, new File(tempDir), scan.next())
                             );
                         }
                     }
 
-                    // output
-                    Finish.saveFinal(lastFile, Path.of(dir), scraper.getFinalFileName());
+                    // finish
+                    Finish.saveFinal(lastFile, new File(dir), scraper.getFinalFileName());
+                    if (!keepTemp) {
+                        Finish.cleanTemp(new File(tempDir), false);
+                        Logger.info("Cleaned temporary files in {}", tempDir);
+                    }
                 }
             }
         }
-        // cleanup
-        if (!keepTemp) {
-            Finish.cleanTemp(Path.of(tempDir));
-            Logger.info("Cleaned all temporary/working files and folders");
-        }
-
         Logger.info("Done!");
     }
 
