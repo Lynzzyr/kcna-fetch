@@ -159,6 +159,8 @@ public class KCNAFetch implements Runnable {
                                 lastFile,
                                 Refine.searchTimestamps(lastFile, new File(tempDir), scan.next())
                             );
+                        } catch (IOException e) {
+                            Logger.warn("Unexpected IO exception whilst creating API request!");
                         }
                     }
 

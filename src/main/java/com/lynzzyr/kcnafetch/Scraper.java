@@ -26,15 +26,10 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.tinylog.Logger;
 
+import com.lynzzyr.kcnafetch.Constants.ScraperConstants;
+
 /** Class for scraping videos with Selenium Chromedriver. */
 public class Scraper implements AutoCloseable {
-    // constants
-    private final int CURSOR_OFFSET_X   = 10;
-    private final int CURSOR_OFFSET_Y   = 10;
-    private final int WAIT_FOR_JS       = 30; // seconds
-    private final int FETCH_ATTEMPTS    = 3;
-    private final int BYTES_PER_BUFFER  = 8192;
-
     // date
     private LocalDate date;
 
@@ -87,11 +82,9 @@ public class Scraper implements AutoCloseable {
      * @param totalSize Number of bytes in total
      */
     private static void progressBar(long downloaded, long totalSize) {
-        final int BAR_WIDTH = 50;
-
         double progress = (double) downloaded / totalSize;
-        int filledBars = (int) (progress * BAR_WIDTH);
-        String bar = "[" + "=".repeat(filledBars) + " ".repeat(BAR_WIDTH - filledBars) + "]";
+        int filledBars = (int) (progress * ScraperConstants.PROGRESS_BAR_WIDTH);
+        String bar = "[" + "=".repeat(filledBars) + " ".repeat(ScraperConstants.PROGRESS_BAR_WIDTH - filledBars) + "]";
         System.out.print("\033[2K\r" + bar + " " + (int) (progress * 100) + "% (" + downloaded + "/" + totalSize + " bytes) ");
         System.out.flush();
     }
@@ -139,11 +132,11 @@ public class Scraper implements AutoCloseable {
 
         // get final resource url
         new Actions(driver)
-            .moveByOffset(CURSOR_OFFSET_X, CURSOR_OFFSET_Y) // arbitrary
+            .moveByOffset(ScraperConstants.CURSOR_OFFSET_X, ScraperConstants.CURSOR_OFFSET_Y) // arbitrary
             .perform(); // kcnawatch.org has tried
         String u3 = new WebDriverWait(
             driver,
-            Duration.ofSeconds(WAIT_FOR_JS) // arbitary
+            Duration.ofSeconds(ScraperConstants.WAIT_FOR_JS) // arbitary
         ).until(
             ExpectedConditions.presenceOfElementLocated(By.xpath("//video[@id = \'bitmovinplayer-video-player\']")))
             .findElement(By.xpath("source"))
@@ -203,8 +196,8 @@ public class Scraper implements AutoCloseable {
         con.setReadTimeout(timeout);
 
         // get, will try 3 times in case of download fault
-        for (int i = 0; i < FETCH_ATTEMPTS; i++) {
-            Logger.info("File download attempt {}/{}", i + 1, FETCH_ATTEMPTS);
+        for (int i = 0; i < ScraperConstants.FETCH_ATTEMPTS; i++) {
+            Logger.info("File download attempt {}/{}", i + 1, ScraperConstants.FETCH_ATTEMPTS);
 
             con.connect();
             Logger.debug("HTTP connection established");
@@ -215,7 +208,7 @@ public class Scraper implements AutoCloseable {
             }
 
             // actual data download, certain portions template written by ChatGPT 4o
-            byte[] buffer = new byte[BYTES_PER_BUFFER];
+            byte[] buffer = new byte[ScraperConstants.BYTES_PER_BUFFER];
             long dl = 0;
             int read;
 
