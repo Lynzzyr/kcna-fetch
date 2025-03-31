@@ -8,6 +8,8 @@ package com.lynzzyr.kcnafetch.output;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -15,10 +17,12 @@ import java.util.regex.Pattern;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.entity.mime.FileBody;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
-import org.apache.hc.client5.http.impl.classic.BasicHttpClientResponseHandler;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.io.HttpClientResponseHandler;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.tinylog.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -28,86 +32,99 @@ import com.lynzzyr.kcnafetch.Constants.RefineConstants;
 /** Class of static methods for performing any video processing and reencoding with ffmpeg. */
 public final class Refine {
     /**
-     * Create and execute HTTP POST requests to OCR API for every image file in specified directory
-     * @param dir The directory of images
-     * @return A List of JSON responses for each request
+     * Create and execute HTTP POST requests to OCR API for an image file
+     * @param img The directory of images
+     * @return A JSON response
      */
-    private static List<JsonNode> postOcrAPI(File dir, String apiKey) throws IOException {
-        List<JsonNode> responses = new ArrayList<>();
-
+    private static JsonNode postOcrAPI(File img, String apiKey) throws IOException {
         HttpPost req = new HttpPost(RefineConstants.API_URL);
         try (CloseableHttpClient client = HttpClients.createDefault()) {
-            for (File img : dir.listFiles()) {
-                req.setEntity(MultipartEntityBuilder.create()
-                    .addTextBody("apiKey", apiKey)
-                    .addTextBody("language", "kor")
-                    .addTextBody("OCREngine", "2")
-                    .addPart("file", new FileBody(img, ContentType.IMAGE_JPEG))
-                    .build()
-                );
-                
-                String res = client.execute(req, null, new BasicHttpClientResponseHandler());
-                Logger.info("HTTP POST request of {} sent to OCR API", img.getName());
+            req.setEntity(MultipartEntityBuilder.create()
+                .addTextBody("apikey", apiKey)
+                .addTextBody("language", "kor")
+                .addTextBody("OCREngine", "2")
+                .addPart("file", new FileBody(img, ContentType.IMAGE_JPEG))
+                .build()
+            );
 
-                responses.add(new ObjectMapper().readTree(res));
-                Logger.info("Response for POST request of {} received", img.getName());
+            HttpClientResponseHandler<String> responseHandler = (ClassicHttpResponse response) -> {
+                int status = response.getCode();
+                if (status >= 200 && status < 300) {
+                    return EntityUtils.toString(response.getEntity());
+                } else {
+                    throw new IOException("Unexpected HTTP status code " + Integer.toString(status));
+                }
+            };
 
-                req.reset();
-            }
+            Logger.info("HTTP POST request of {} being sent to OCR API...", img.getName());
+            String res = client.execute(req, null, responseHandler);
+
+            Logger.info("Response for POST request of {} received", img.getName());
+            return new ObjectMapper().readTree(res);
         }
-
-        return responses;
     }
 
     /**
-     * Filters OCR API JSON results
-     * @param results The List results
-     * @return A List of all valid timestamp Strings
+     * Filters an OCR API JSON result
+     * @param result A result
+     * @return A valid timestamp String, null if failed
      */
-    private static List<String> filterOcrResults(List<JsonNode> results) {
-        List<String> timestamps = new ArrayList<>();
-
-        for (JsonNode node : results) {
-            // filter all failed (exit codes 3 and 4)
-            if (
-                node.get("OCRExitCode").asInt() == 1 ||
-                node.get("OCRExitCode").asInt() == 2
-            ) {
-                // iterate through array of results
-                for (JsonNode res : node.get("ParsedResults")) { 
-                    if (res
-                        .get("ParsedText")
-                        .asText()
-                        .contains("시") // does not check "분" because may sometimes not appear
-                    ) {
-                        timestamps.add(res.get("ParsedText").asText());
-                    }
+    private static String filterOcrResult(JsonNode result) {
+        // filter all failed (exit codes 3 and 4)
+        if (
+            result.get("OCRExitCode").asInt() == 1 ||
+            result.get("OCRExitCode").asInt() == 2
+        ) {
+            // iterate through array of results
+            for (JsonNode res : result.get("ParsedResults")) { 
+                if (res
+                    .get("ParsedText")
+                    .asText()
+                    .contains("시") // does not check "분" because may sometimes not appear
+                ) {
+                    return res.get("ParsedText").asText();
                 }
             }
         }
-        
-        return timestamps;
+
+        return null;
     }
 
     /**
      * Parses raw String timestamps from video. Example "9시 30분"
      * @param rawStrings List of String timestamps
-     * @return A List of parsed timestamp integers representing seconds since beginning
+     * @return An ordered List of parsed timestamp integers representing seconds since beginning
      */
     private static List<Integer> parseTimestamps(List<String> rawStrings) {
         List<Integer> timestamps = new ArrayList<>();
         for (String str : rawStrings) {
-            Matcher matcher = Pattern.compile("\\d+").matcher(str);
-
-            List<Integer> nums = new ArrayList<>();
-            while (matcher.find()) {
-                nums.add(Integer.valueOf(matcher.group()));
+            // check for precisely the correct format
+            Matcher format = Pattern.compile("\\d{1,2}시\\p{Space}\\d{1,2}분").matcher(str);
+            if (format.find()) {
+                str = format.group();
+            } else {
+                continue;
             }
 
-            timestamps.add((nums.get(0) * 60 + nums.get(1)) - 32400); // 9 hrs = 32,400 secs
+            Matcher times = Pattern.compile("\\d+").matcher(str);
+
+            List<Integer> nums = new ArrayList<>();
+            while (times.find()) {
+                nums.add(Integer.valueOf(times.group()));
+            }
+
+            timestamps.add(
+                (
+                    nums.get(0) * 3600 +
+                    (nums.size() == 2 ? nums.get(1) : 0) * 60 // check for minute component
+                ) - 32400
+            ); // 9 hrs = 32,400 secs
         }
 
-        Logger.info("Timestamps parsed");
+        // final processes
+        timestamps = new ArrayList<>(new LinkedHashSet<>(timestamps)); // remove duplicates
+        Collections.sort(timestamps);
+
         return timestamps;
     }
 
@@ -196,7 +213,7 @@ public final class Refine {
      * @return List of timestamps in seconds since beginning, null if failed
      * @throws IOException If HTTP status is not OK on request
      */
-    public static List<Integer> searchTimestamps(File file, File tempDir, String apiKey) throws IOException {
+    public static List<Integer> searchTimestamps(File file, File tempDir, String apiKey) {
         // first pass
         File images = saveSnapshots(
             file,
@@ -211,8 +228,20 @@ public final class Refine {
             return null;
         }
 
-        List<String> primary = filterOcrResults(postOcrAPI(images, apiKey));
+        List<String> primary = new ArrayList<>();
+        for (File img : images.listFiles()) {
+            try {
+                String res = filterOcrResult(postOcrAPI(img, apiKey));
+                if (res != null) {
+                    primary.add(res);
+                }
+            } catch (IOException e) {
+                Logger.warn(e.getMessage());
+                break;
+            }
+        }
         if (!primary.isEmpty()) {
+            Logger.info("Timestamps parsed");
             return parseTimestamps(primary);
         }
 
@@ -229,8 +258,20 @@ public final class Refine {
             return null;
         }
 
-        List<String> later = filterOcrResults(postOcrAPI(images, apiKey));
+        List<String> later = new ArrayList<>();
+        for (File img : images.listFiles()) {
+            try {
+                String res = filterOcrResult(postOcrAPI(img, apiKey));
+                if (res != null) {
+                    later.add(res);
+                }
+            } catch (IOException e) {
+                Logger.warn(e.getMessage());
+                break;
+            }
+        }
         if (!later.isEmpty()) {
+            Logger.info("Timestamps parsed");
             return parseTimestamps(later);
         }
 

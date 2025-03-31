@@ -19,3 +19,5 @@ KCNAFetch uses Java 21+ to run. This is solely a command-line utility; run in a 
 If using the `timestamps` option, you must:
 - Provide a `.txt` file containing a vaid API key for OCR.SPACE's [OCR API](https://ocr.space/OCRAPI). The location of the text file may be specified with `--ocr_api`.
 - Have `ffmpeg` installed and added to the user's PATH.
+
+> _**WARNING:** A free key for OCR.SPACE's free OCR API has a maximum daily limit per IP address of 500 requests. However, please keep in mind that requests may return HTTP 403 codes even before reaching that limit in actual deployment._
