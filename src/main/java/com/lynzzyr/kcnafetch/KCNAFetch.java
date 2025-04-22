@@ -11,6 +11,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 
 import org.tinylog.Logger;
 
@@ -32,7 +33,7 @@ public class KCNAFetch implements Runnable {
     // parameters
     @Parameters(
         index = "0",
-        description = "Directory to save the result. Both POSIX and Windows paths are accepted."
+        description = "Main parent directory to save results. Will automatically create month subfolders. Both POSIX and Windows paths are accepted."
     )
     private String dir;
 
@@ -115,13 +116,19 @@ public class KCNAFetch implements Runnable {
         ) {
             // each day in specified range
             for (LocalDate d = startDate; !d.isAfter(endDate); d = d.plusDays(1)) {
+                // date things
                 scraper.setDate(d);
+
+                Path monthDir = Path.of(dir).resolve( // month specific subfolder within specified dir
+                    d.format(DateTimeFormatter.ofPattern("uuuu MM"))
+                );
+                monthDir.toFile().mkdir(); // create folder when not exist
 
                 // scrape URL
                 try {
                     scraper.getBroadcast(
                         scraper.scrapeURL(),
-                        process ? Path.of(tempDir) : Path.of(dir),
+                        process ? Path.of(tempDir) : monthDir,
                         timeout,
                         process,
                         rp
@@ -153,7 +160,7 @@ public class KCNAFetch implements Runnable {
                         System.exit(1);
                     }
                     try {
-                        Files.copy(lastFile.toPath(), scraper.getCompletedFile(Path.of(dir)).toPath());
+                        Files.copy(lastFile.toPath(), scraper.getCompletedFile(monthDir).toPath());
                     } catch (IOException e) {
                         Logger.error(e, "Unexpected error whilst copying processed video file! Exiting");
                         System.exit(1);
