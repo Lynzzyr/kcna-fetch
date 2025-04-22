@@ -9,6 +9,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Scanner;
 
 import org.tinylog.Logger;
@@ -32,7 +33,7 @@ public class KCNAFetch implements Runnable {
     // parameters
     @Parameters(
         index = "0",
-        description = "Directory to save the result. Both POSIX and Windows paths are accepted."
+        description = "Main parent directory to save results. Will automatically create month subfolders. Both POSIX and Windows paths are accepted."
     )
     private String dir;
 
@@ -125,13 +126,20 @@ public class KCNAFetch implements Runnable {
         ) {
             // each day in specified range
             for (LocalDate d = startDate; !d.isAfter(endDate); d = d.plusDays(1)) {
+                // date things
                 scraper.setDate(d);
+
+                File monthDir = new File(dir) // month specific subfolder within specified dir
+                    .toPath()
+                    .resolve(d.format(DateTimeFormatter.ofPattern("uuuu MM")))
+                    .toFile();
+                monthDir.mkdir(); // create folder when not exist
 
                 // scrape URL
                 try {
                     scraper.getBroadcast(
                         scraper.scrapeURL(),
-                        process ? new File(tempDir) : new File(dir),
+                        process ? new File(tempDir) : monthDir,
                         timeout,
                         process,
                         rp
@@ -163,7 +171,7 @@ public class KCNAFetch implements Runnable {
                     }
 
                     // finish
-                    Finish.saveFinal(lastFile, new File(dir), scraper.getFinalFileName());
+                    Finish.saveFinal(lastFile, monthDir, scraper.getFinalFileName());
                     if (!keepTemp) {
                         Finish.cleanTemp(new File(tempDir), false);
                         Logger.info("Cleaned temporary files in {}", tempDir);
